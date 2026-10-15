@@ -1,5 +1,6 @@
 
 import pygame
+from client.score_client import submit_score
 from game.game import CellSize, Colors, GridCols, GridRows, Game
 
 Width = GridCols * CellSize + 40
@@ -352,6 +353,7 @@ def Main():
     GameObj = Game()
     Running = True
     PlayerName = ""
+    ScoreSent = False
 
     pygame.key.start_text_input()
 
@@ -445,6 +447,13 @@ def Main():
                         GameObj.AnswerColor(SelectedColor)
 
         GameObj.Update(Dt)
+
+        if GameObj.State == "over" and not ScoreSent:
+            submit_score(PlayerName, GameObj.Score)
+            ScoreSent = True
+        elif GameObj.State != "over":
+            ScoreSent = False
+
         GameScreen(Screen, GameObj, Fonts, PlayerName)
 
     pygame.key.stop_text_input()

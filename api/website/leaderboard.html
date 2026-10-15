@@ -16,26 +16,58 @@
     <h2>Labākie rezultāti</h2>
 
     <table>
-        <tr>
-            <th>Vieta</th>
-            <th>Spēlētājs</th>
-            <th>Punkti</th>
-        </tr>
-        <tr>
-            <td>1</td>
-            <td>Spēlētājs1</td>
-            <td>250</td>
-        </tr>
-        <tr>
-            <td>2</td>
-            <td>Spēlētājs2</td>
-            <td>180</td>
-        </tr>
-        <tr>
-            <td>3</td>
-            <td>Spēlētājs3</td>
-            <td>120</td>
-        </tr>
+        <thead>
+            <tr>
+                <th>Vieta</th>
+                <th>Spēlētājs</th>
+                <th>Punkti</th>
+            </tr>
+        </thead>
+        <tbody id="scores-body">
+            <tr><td colspan="3">Ielādē...</td></tr>
+        </tbody>
     </table>
+
+    <script>
+        const body = document.getElementById("scores-body");
+
+        function messageRow(text) {
+            body.innerHTML = "";
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = 3;
+            td.textContent = text;
+            tr.appendChild(td);
+            body.appendChild(tr);
+        }
+
+        async function loadScores() {
+            try {
+                const res = await fetch("/scores?limit=10");
+                if (!res.ok) throw new Error(res.status);
+                const scores = await res.json();
+
+                if (scores.length === 0) {
+                    messageRow("Vēl nav rezultātu.");
+                    return;
+                }
+
+                body.innerHTML = "";
+                scores.forEach((s, i) => {
+                    const tr = document.createElement("tr");
+                    [i + 1, s.player, s.score].forEach(value => {
+                        const td = document.createElement("td");
+                        td.textContent = value;
+                        tr.appendChild(td);
+                    });
+                    body.appendChild(tr);
+                });
+            } catch (err) {
+                messageRow("Neizdevās ielādēt rezultātus.");
+            }
+        }
+
+        loadScores();
+    </script>
 </body>
 </html>
