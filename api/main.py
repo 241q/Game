@@ -34,6 +34,4 @@ def post_score(entry: ScoreIn):
 def get_scores(limit: int = Query(10, ge=1, le=100)):
     return db.get_top_scores(limit)
 
-
-# Must be last: serves leaderboard.html, rules.html, styles.css from /website
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

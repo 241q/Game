@@ -2,7 +2,6 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-# Always store the DB next to this file, no matter where uvicorn is started from
 DB_PATH = Path(__file__).parent / "game.db"
 
 
@@ -19,7 +18,7 @@ def get_connection():
 
 def add_score(player: str, score: int) -> None:
     with closing(get_connection()) as conn:
-        with conn:  # commits on success
+        with conn:
             conn.execute(
                 "INSERT INTO scores (player, score) VALUES (?, ?)",
                 (player, score),

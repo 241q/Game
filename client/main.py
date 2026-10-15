@@ -1,7 +1,12 @@
 
+import math
+from pathlib import Path
+
 import pygame
 from client.score_client import submit_score
-from game.game import CellSize, Colors, GridCols, GridRows, Game
+from game.game import (
+    CellSize, ChallengeDuration, Colors, GridCols, GridRows, Game
+)
 
 Width = GridCols * CellSize + 40
 Height = GridRows * CellSize + 220
@@ -13,11 +18,11 @@ BoardHeight = GridRows * CellSize
 ColorButtons = {}
 ColorButtonSize = 44
 ColorButtonGap = 12
-ColorButtonY = 122
+ColorButtonY = 74
 
 Background = (7, 7, 8)
 BoardColor = (18, 18, 20)
-GridColor = (35, 35, 38)
+GridColor = (29, 30, 35)
 TextColor = (225, 225, 225)
 MutedColor = (125, 125, 128)
 AccentColor = (200, 55, 55)
@@ -25,6 +30,49 @@ SnakeColor = (65, 125, 80)
 SnakeHeadColor = (115, 175, 105)
 InputBackground = (27, 27, 30)
 InputBorder = (65, 65, 70)
+FrameColor = (38, 43, 62)
+
+BackgroundFile = "background.jpg"
+ImageHorizonY = 250
+
+
+def LoadBackground():
+    Folder = Path(__file__).resolve().parent
+    Candidates = (
+        Folder.parent / "assets" / BackgroundFile,
+        Folder / "assets" / BackgroundFile,
+    )
+
+    FilePath = next((Path_ for Path_ in Candidates if Path_.exists()), None)
+
+    if FilePath is None:
+        print("Background image not found. Looked in:")
+        for Path_ in Candidates:
+            print("  ", Path_)
+
+        Fallback = pygame.Surface((Width, Height))
+        Fallback.fill(Background)
+        return Fallback
+
+    Picture = pygame.image.load(str(FilePath)).convert()
+    PicW, PicH = Picture.get_size()
+
+    Scale = max(
+        Width / PicW,
+        Height / PicH,
+        (Height - BoardY) / (PicH - ImageHorizonY)
+    )
+    NewW = math.ceil(PicW * Scale)
+    NewH = math.ceil(PicH * Scale)
+    Picture = pygame.transform.smoothscale(Picture, (NewW, NewH))
+
+    OffsetX = (Width - NewW) // 2
+    OffsetY = BoardY - round(ImageHorizonY * Scale)
+    OffsetY = min(0, max(OffsetY, Height - NewH))
+
+    Result = pygame.Surface((Width, Height))
+    Result.blit(Picture, (OffsetX, OffsetY))
+    return Result
 
 
 def Text(Screen, TextValue, Font, Color, Position, Center=False):
@@ -70,8 +118,10 @@ def CellRect(Cell, Inset=2):
 
 
 def Board(Screen):
-    BoardRect = pygame.Rect(BoardX, BoardY, BoardWidth, BoardHeight)
-    pygame.draw.rect(Screen, BoardColor, BoardRect)
+    pygame.draw.rect(
+        Screen, FrameColor,
+        (BoardX - 1, BoardY - 1, BoardWidth + 2, BoardHeight + 2), 1
+    )
 
     for X in range(1, GridCols):
         Px = BoardX + X * CellSize
@@ -88,102 +138,223 @@ def Board(Screen):
         )
 
 
-def Header(Screen, GameObj, Fonts):
-    Text(
-        Screen, str(GameObj.Score).zfill(3), Fonts["large"],
-        TextColor, (22, 38)
+Cream = (232, 230, 204)
+Amber = (240, 175, 60)
+Ink = (4, 6, 12)
+Navy = (10, 14, 28)
+Stone = (90, 100, 140)
+Urgent = (225, 70, 60)
+
+SignRect = pygame.Rect(300, 12, 560, 154)
+PixelFont = None
+
+ApplePattern = (
+    "....g...",
+    "...g....",
+    ".rrrrrr.",
+    "rhrrrrrr",
+    "rrrrrrrr",
+    "rrrrrrrr",
+    ".rrrrrr.",
+    "..rr.rr.",
+)
+AppleColors = {
+    "r": (190, 65, 58),
+    "h": (230, 120, 110),
+    "g": (90, 135, 75),
+}
+ArrowPattern = (
+    "xxxxx",
+    ".xxx.",
+    "..x..",
+)
+
+
+def PixelText(Screen, Value, Scale, Color, Position, Center=False, Shadow=True):
+    """Chunky text: drawn small with no smoothing, then scaled up."""
+    global PixelFont
+
+    if PixelFont is None:
+        PixelFont = pygame.font.Font(None, 16)
+
+    def Build(TextColor):
+        Small = PixelFont.render(str(Value), False, TextColor).convert_alpha()
+        return pygame.transform.scale(
+            Small, (Small.get_width() * Scale, Small.get_height() * Scale)
+        )
+
+    Image = Build(Color)
+    Rect = Image.get_rect()
+
+    if Center:
+        Rect.center = Position
+    else:
+        Rect.topleft = Position
+
+    if Shadow:
+        Screen.blit(Build(Ink), Rect.move(Scale, Scale))
+
+    Screen.blit(Image, Rect)
+    return Rect
+
+
+def PixelArt(Screen, Pattern, Colors_, X, Y, Unit):
+    for RowIndex, Row in enumerate(Pattern):
+        for ColIndex, Char in enumerate(Row):
+            if Char in Colors_:
+                pygame.draw.rect(
+                    Screen, Colors_[Char],
+                    (X + ColIndex * Unit, Y + RowIndex * Unit, Unit, Unit)
+                )
+
+
+def NotchedRect(Screen, Color, Rect, Unit):
+    pygame.draw.rect(
+        Screen, Color,
+        (Rect.x + Unit, Rect.y, Rect.width - 2 * Unit, Rect.height)
+    )
+    pygame.draw.rect(
+        Screen, Color,
+        (Rect.x, Rect.y + Unit, Rect.width, Rect.height - 2 * Unit)
     )
 
-    Text(
-        Screen, f"LVL {GameObj.Level}/5", Fonts["small"],
-        MutedColor, (24, 87)
-    )
+
+def PixelBox(Screen, Rect, Border, Fill, Unit=4):
+    NotchedRect(Screen, Ink, Rect, Unit)
+    NotchedRect(Screen, Border, Rect.inflate(-2 * Unit, -2 * Unit), Unit)
+    NotchedRect(Screen, Fill, Rect.inflate(-4 * Unit, -4 * Unit), Unit)
+
+
+def Header(Screen, GameObj, Fonts):
+    PixelText(Screen, "PUNKTI", 2, Stone, (26, 12))
+    PixelText(Screen, str(GameObj.Score).zfill(3), 4, Cream, (26, 34))
+
+    PixelText(Screen, "LĪMENIS", 2, Stone, (26, 84))
+
+    for Index in range(5):
+        Pip = pygame.Rect(26 + Index * 24, 114, 18, 18)
+        pygame.draw.rect(Screen, Ink, Pip.inflate(4, 4))
+
+        if Index < GameObj.Level:
+            pygame.draw.rect(Screen, Amber, Pip)
+            pygame.draw.rect(Screen, Cream, (Pip.x, Pip.y, Pip.width, 4))
+        else:
+            pygame.draw.rect(Screen, (28, 34, 56), Pip)
 
     ColorButtons.clear()
 
     if GameObj.State == "play" and GameObj.FoodType == "normal":
         Seconds = GameObj.NormalAppleSecondsLeft
-        TimerColor = (235, 65, 65) if Seconds <= 5 else TextColor
+        Low = Seconds <= 5
+        Blink = Low and (pygame.time.get_ticks() // 250) % 2 == 0
 
-        Text(
-            Screen, f"ĀBOLS: {Seconds:.1f} s", Fonts["medium"],
-            TimerColor, (22, 125)
+        PixelArt(Screen, ApplePattern, AppleColors, 26, 146, 3)
+        PixelText(
+            Screen, f"{Seconds:.1f}", 3,
+            Urgent if Blink else Cream, (62, 146)
         )
 
-    if GameObj.Challenge:
-        PanelX = 300
-        PanelWidth = Width - PanelX - 20
-        PanelCenter = PanelX + PanelWidth // 2
-        Seconds = GameObj.ChallengeSecondsLeft
-        TimerColor = (210, 85, 75) if Seconds < 1.5 else AccentColor
+    if not GameObj.Challenge:
+        return
 
-        Text(
-            Screen, f"{Seconds:.1f} s", Fonts["small"],
-            TimerColor, (PanelCenter, 18), Center=True
+    Seconds = GameObj.ChallengeSecondsLeft
+    Hurry = Seconds < 1.5
+    Blink = Hurry and (pygame.time.get_ticks() // 120) % 2 == 0
+
+    PixelBox(Screen, SignRect, Urgent if Blink else Stone, Navy)
+
+    CenterX = SignRect.centerx
+    ChallengeType = GameObj.Challenge["Type"]
+
+    Titles = {
+        "key": "NOSPIED TAUSTIŅU",
+        "color": "ATRODI KRĀSU",
+        "mouse": "PELES MĒRĶIS",
+    }
+
+    PixelText(
+        Screen, Titles[ChallengeType], 2, Cream, (CenterX, 38), Center=True
+    )
+    PixelText(
+        Screen, f"{Seconds:.1f}", 3, Urgent if Hurry else Amber,
+        (SignRect.right - 70, 38), Center=True
+    )
+
+    Blocks = 20
+    BlockWidth = 22
+    BlockGap = 4
+    BarWidth = Blocks * BlockWidth + (Blocks - 1) * BlockGap
+    BarX = CenterX - BarWidth // 2
+    Fraction = max(0.0, min(1.0, Seconds * 1000 / ChallengeDuration))
+    Lit = math.ceil(Fraction * Blocks)
+
+    for Index in range(Blocks):
+        if Index < Lit:
+            LitColor = Urgent if Hurry else Amber
+            if Blink:
+                LitColor = Cream
+        else:
+            LitColor = (28, 34, 56)
+
+        pygame.draw.rect(
+            Screen, LitColor,
+            (BarX + Index * (BlockWidth + BlockGap), 132, BlockWidth, 12)
         )
 
-        ChallengeType = GameObj.Challenge["Type"]
+    if ChallengeType == "key":
+        Target = GameObj.Challenge["Key"]
+        IsSpace = Target == "SPACE"
 
-        if ChallengeType == "key":
-            Target = GameObj.Challenge["Key"]
+        Face = pygame.Rect(0, 0, 230 if IsSpace else 64, 64)
+        Face.center = (CenterX, 84)
 
-            Text(
-                Screen, "NOSPIED TAUSTIŅU", Fonts["small"],
-                MutedColor, (PanelCenter, 53), Center=True
+        pygame.draw.rect(Screen, Ink, Face.inflate(8, 8).move(0, 3))
+        pygame.draw.rect(Screen, (150, 146, 120), Face.move(0, 6))
+        pygame.draw.rect(Screen, Cream, Face)
+
+        PixelText(
+            Screen, Target, 3 if IsSpace else 4, (20, 24, 44),
+            Face.center, Center=True, Shadow=False
+        )
+
+    elif ChallengeType == "color":
+        Target = GameObj.Challenge["Color"]
+
+        ButtonNames = tuple(Colors.keys())
+        TotalWidth = (
+            len(ButtonNames) * ColorButtonSize
+            + (len(ButtonNames) - 1) * ColorButtonGap
+        )
+        StartX = CenterX - TotalWidth // 2
+
+        for Index, Name in enumerate(ButtonNames):
+            Rect = pygame.Rect(
+                StartX + Index * (ColorButtonSize + ColorButtonGap),
+                ColorButtonY,
+                ColorButtonSize,
+                ColorButtonSize
             )
+            ColorButtons[Name] = Rect
 
-            Text(
-                Screen,
-                "SPACE" if Target == "SPACE" else Target,
-                Fonts["keytarget"], AccentColor,
-                (PanelCenter, 104), Center=True
+            pygame.draw.rect(
+                Screen, Cream if Name == Target else Ink, Rect.inflate(8, 8)
             )
+            pygame.draw.rect(Screen, Colors[Name], Rect)
 
-        elif ChallengeType == "color":
-            Target = GameObj.Challenge["Color"]
-
-            Text(
-                Screen, "ATRODI KRĀSU", Fonts["medium"],
-                TextColor, (PanelCenter, 47), Center=True
-            )
-
-            ButtonNames = tuple(Colors.keys())
-            TotalWidth = (
-                len(ButtonNames) * ColorButtonSize
-                + (len(ButtonNames) - 1) * ColorButtonGap
-            )
-            StartX = PanelCenter - TotalWidth // 2
-
-            for Index, Name in enumerate(ButtonNames):
-                Rect = pygame.Rect(
-                    StartX + Index * (ColorButtonSize + ColorButtonGap),
-                    ColorButtonY,
-                    ColorButtonSize,
-                    ColorButtonSize
+            if Name == Target:
+                PixelArt(
+                    Screen, ArrowPattern, {"x": Cream},
+                    Rect.centerx - 10, Rect.y - 22, 4
                 )
-                ColorButtons[Name] = Rect
-                pygame.draw.rect(Screen, Colors[Name], Rect)
 
-                if Name == Target:
-                    pygame.draw.rect(
-                        Screen, (245, 245, 245),
-                        (
-                            Rect.x - 2, Rect.y - 2,
-                            Rect.width + 4, Rect.height + 4
-                        ),
-                        2
-                    )
+    elif ChallengeType == "mouse":
+        pygame.draw.circle(Screen, Amber, (CenterX, 76), 16, 3)
+        pygame.draw.circle(Screen, Amber, (CenterX, 76), 3)
 
-        elif ChallengeType == "mouse":
-            Text(
-                Screen, "PELES MĒRĶIS", Fonts["medium"],
-                TextColor, (PanelCenter, 55), Center=True
-            )
-            Text(
-                Screen, "PĀRVIETO PELI UZ DZELTENO APLI",
-                Fonts["small"], AccentColor,
-                (PanelCenter, 105), Center=True
-            )
+        PixelText(
+            Screen, "PĀRVIETO PELI UZ DZELTENO APLI", 2, Amber,
+            (CenterX, 106), Center=True
+        )
 
 
 def Objects(Screen, GameObj):
@@ -262,8 +433,8 @@ def Overlay(Screen, Title, Subtitle, Fonts, TitleColor=AccentColor):
     )
 
 
-def GameScreen(Screen, GameObj, Fonts, PlayerName):
-    Screen.fill(Background)
+def GameScreen(Screen, GameObj, Fonts, PlayerName, BackgroundImage):
+    Screen.blit(BackgroundImage, (0, 0))
     Header(Screen, GameObj, Fonts)
     Board(Screen)
     Objects(Screen, GameObj)
@@ -350,6 +521,7 @@ def Main():
     pygame.display.set_caption("Panic Snake")
     Clock = pygame.time.Clock()
     Fonts = GetFonts()
+    BackgroundImage = LoadBackground()
     GameObj = Game()
     Running = True
     PlayerName = ""
@@ -454,7 +626,9 @@ def Main():
         elif GameObj.State != "over":
             ScoreSent = False
 
-        GameScreen(Screen, GameObj, Fonts, PlayerName)
+        GameScreen(
+            Screen, GameObj, Fonts, PlayerName, BackgroundImage
+        )
 
     pygame.key.stop_text_input()
     pygame.quit()

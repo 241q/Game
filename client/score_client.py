@@ -4,10 +4,7 @@ import urllib.request
 
 API_URL = "http://127.0.0.1:8000/scores"
 
-
 def submit_score(player, score):
-    print("hi i submitted")
-
     def send():
         data = json.dumps({"player": player, "score": score}).encode("utf-8")
         request = urllib.request.Request(
@@ -18,7 +15,7 @@ def submit_score(player, score):
         )
         try:
             urllib.request.urlopen(request, timeout=3).close()
-        except OSError as error:  # server down, timeout, etc.
+        except OSError as error:
             print(f"Could not save score: {error}")
 
     threading.Thread(target=send, daemon=True).start()
