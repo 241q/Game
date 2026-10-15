@@ -1,0 +1,43 @@
+body {
+    background-color: #1b1b1b;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+h1 {
+    color: #ffffff;
+}
+
+nav {
+    margin: 20px;
+}
+
+nav a {
+    color: #a9d1ff;
+    margin: 10px;
+    text-decoration: none;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+table {
+    margin: 20px auto;
+    border-collapse: collapse;
+    background-color: #1e1e1e;
+}
+
+th, td {
+    border: 1px solid #444;
+    padding: 10px 20px;
+}
+
+th {
+    background-color: #292929;
+}
+
+p {
+    font-size: 17px;
+}
